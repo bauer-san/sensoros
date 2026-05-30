@@ -1,0 +1,110 @@
+# docker-compose.yml
+#OBSOLETE-REMOVE version: '3.8'
+
+services:
+
+  redis:
+    image: redis:7-alpine
+    platform: linux/arm64
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - sensoros-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli",
+             "-a", "${REDIS_PASSWORD}",
+             "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  perception:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.perception
+    runtime: nvidia
+    network_mode: host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - CAMERA_RTSP_URL=${CAMERA_RTSP_URL}
+      - CAMERA_WIDTH=${CAMERA_WIDTH}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT}
+      - CAMERA_FPS=${CAMERA_FPS}
+      - REDIS_HOST=localhost
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SCENE_STATE_FPS=${SCENE_STATE_FPS}
+      - OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
+      # Limit PyTorch reserved memory
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
+    volumes:
+      - ./calibration:/app/calibration:ro
+      - ./configs:/app/configs:ro
+      - ./data/logs:/app/logs
+      # Shared memory for zero-copy frame references
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 512000000   # 512MB
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  anomaly:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.anomaly
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
+    volumes:
+      - ./models:/app/models:ro
+      - ./configs:/app/configs:ro
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sensoros-net
+    restart: unless-stopped
+
+  twin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.twin
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL}
+    volumes:
+      - ./configs:/app/configs:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sensoros-net
+    restart: unless-stopped
+
+networks:
+  sensoros-net:
+    driver: bridge
+
+volumes:
+  redis-data:

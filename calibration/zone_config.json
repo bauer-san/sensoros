@@ -1,0 +1,32 @@
+# zone_config.json
+{
+  "zones": [
+    {
+      "id": "perimeter_outer",
+      "label": "Outer Perimeter",
+      "alert_level": "low",
+      "polygon": [
+        [0.0, 0.0], [20.0, 0.0],
+        [20.0, 15.0], [0.0, 15.0]
+      ]
+    },
+    {
+      "id": "restricted_entrance",
+      "label": "Restricted Entrance",
+      "alert_level": "high",
+      "polygon": [
+        [8.0, 0.0], [12.0, 0.0],
+        [12.0, 3.0], [8.0, 3.0]
+      ]
+    },
+    {
+      "id": "asset_zone",
+      "label": "Protected Asset Area",
+      "alert_level": "critical",
+      "polygon": [
+        [14.0, 8.0], [20.0, 8.0],
+        [20.0, 15.0], [14.0, 15.0]
+      ]
+    }
+  ]
+}

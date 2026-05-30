@@ -1,0 +1,32 @@
+# docker/Dockerfile.perception
+FROM nvcr.io/nvidia/l4t-ml:r36.2.0-py3
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    "numpy<2.0" \
+    ultralytics \
+    lapx \
+    supervision \
+    pyzmq \
+    redis \
+    shapely \
+    opencv-python-headless
+
+WORKDIR /app
+COPY src/perception/ .
+COPY src/shared/ ./shared/
+
+CMD ["python3", "perception_node.py"]

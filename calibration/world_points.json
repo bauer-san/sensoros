@@ -1,0 +1,21 @@
+// world_points.json
+// Must be in the same order as image_points.json
+// Units: meters from your chosen origin (0,0)
+{
+  "world_points": [
+    [0.0,  0.0],
+    [5.5,  0.0],
+    [5.5,  5.5],
+    [0.0,  5.5],
+    [2.75, 0.0],
+    [5.5,  2.75],
+    [2.75, 5.5],
+    [0.0,  2.75]
+  ],
+  "notes": {
+    "origin": "Northwest corner of parking space A",
+    "x_axis": "East along north edge of parking area",
+    "y_axis": "South along west edge of parking area",
+    "units": "meters"
+  }
+}

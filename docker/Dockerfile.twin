@@ -1,0 +1,26 @@
+# docker/Dockerfile.twin
+FROM nvcr.io/nvidia/l4t-base:r36.2.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    websockets \
+    redis \
+    pyzmq \
+    anthropic \
+    jinja2 \
+    python-multipart
+
+WORKDIR /app
+COPY src/twin/ .
+COPY src/shared/ ./shared/
+
+EXPOSE 8080
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]

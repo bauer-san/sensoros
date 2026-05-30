@@ -1,0 +1,23 @@
+# docker/Dockerfile.anomaly
+FROM nvcr.io/nvidia/l4t-ml:r36.2.0-py3
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# PyTorch and TensorRT are pre-installed in l4t-ml
+RUN pip3 install --no-cache-dir \
+    scikit-learn \
+    pyzmq \
+    redis \
+    fastapi \
+    uvicorn \
+    pydantic \
+    numpy \
+    pandas
+
+WORKDIR /app
+COPY src/anomaly/ .
+COPY src/shared/ ./shared/
+COPY models/ ./models/
+
+CMD ["python3", "anomaly_node.py"]
