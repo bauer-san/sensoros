@@ -34,6 +34,7 @@ services:
     runtime: nvidia
     network_mode: host
     environment:
+      - CUDA_MODULE_LOADING=EAGER
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - CAMERA_RTSP_URL=${CAMERA_RTSP_URL}
@@ -45,9 +46,11 @@ services:
       - LOG_LEVEL=${LOG_LEVEL}
       - SCENE_STATE_FPS=${SCENE_STATE_FPS}
       - OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
+      - MODEL_PATH=/app/models/yolov8n.engine      
       # Limit PyTorch reserved memory
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
     volumes:
+      - ./models:/app/models
       - ./calibration:/app/calibration:ro
       - ./configs:/app/configs:ro
       - ./data/logs:/app/logs
