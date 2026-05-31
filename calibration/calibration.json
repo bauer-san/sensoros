@@ -1,0 +1,32 @@
+{
+  "homography_matrix": [
+    [
+      -0.007126337570781729,
+      0.03486946023289068,
+      -7.222005229702279
+    ],
+    [
+      0.011261238825543808,
+      -0.012220414384246186,
+      -9.838049394594586
+    ],
+    [
+      -0.0016742010691822777,
+      -0.006426079165527353,
+      1.0
+    ]
+  ],
+  "inliers": 8,
+  "total_points": 10,
+  "mean_error_m": 0.0911,
+  "metadata": {
+    "origin": "Front door edge",
+    "x_axis": "Positive right across scene",
+    "y_axis": "Positive away from camera toward road",
+    "units": "meters",
+    "image_resolution": [
+      640,
+      480
+    ]
+  }
+}

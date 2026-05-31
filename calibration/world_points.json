@@ -1,21 +1,33 @@
-// world_points.json
-// Must be in the same order as image_points.json
-// Units: meters from your chosen origin (0,0)
 {
   "world_points": [
-    [0.0,  0.0],
-    [5.5,  0.0],
-    [5.5,  5.5],
-    [0.0,  5.5],
-    [2.75, 0.0],
-    [5.5,  2.75],
-    [2.75, 5.5],
-    [0.0,  2.75]
+    [0.000,  6.439],
+    [-2.210,  3.797],
+    [-1.803,  5.321],
+    [-2.692,  7.633],
+    [0.914,  4.318],
+    [1.524,  8.522],
+    [5.537, 11.824],
+    [10.414, 13.246],
+    [-5.588,  8.725],
+    [-4.445,  7.455]
+  ],
+  "labels": [
+    "Lantern_0",
+    "Lantern_1",
+    "Lantern_2",
+    "Lantern_3",
+    "Blue_bucket",
+    "Orange_bucket",
+    "White_bucket",
+    "Red_marker_right",
+    "White_bucket_BL",
+    "Wood_bucket"
   ],
   "notes": {
-    "origin": "Northwest corner of parking space A",
-    "x_axis": "East along north edge of parking area",
-    "y_axis": "South along west edge of parking area",
-    "units": "meters"
+    "origin": "Front door edge",
+    "x_axis": "Positive right across scene",
+    "y_axis": "Positive away from camera toward road",
+    "units": "meters",
+    "excluded": "Red_marker_left — estimated measurement at ~39m range"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "zones": [
+    {
+      "id": "approach_zone",
+      "label": "Approach Zone",
+      "alert_level": "high",
+      "polygon": [
+        [-5.0, 0.0],
+        [ 5.0, 0.0],
+        [ 5.0, 8.0],
+        [-5.0, 8.0]
+      ],
+      "description": "Lawn area between house and road — monitors approach toward entrance"
+    }
+  ]
+}
