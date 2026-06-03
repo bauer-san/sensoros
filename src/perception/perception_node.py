@@ -57,6 +57,35 @@ def assign_zone(zones: list, world_x: float, world_y: float) -> dict | None:
             }
     return None
 
+def compute_scene_bounds(zones: list) -> dict:
+    """
+    Compute the bounding box of all defined zone polygons.
+    Used to filter detections clearly outside the monitored area.
+    Adds a configurable buffer beyond the zone boundary.
+    """
+    BUFFER_M = 2.0   # meters beyond zone edge before filtering
+
+    if not zones:
+        # No zones defined — use generous defaults
+        return {
+            "min_x": -50.0, "max_x": 50.0,
+            "min_y":   0.0, "max_y": 50.0
+        }
+
+    all_x = []
+    all_y = []
+    for zone in zones:
+        coords = list(zone["polygon"].exterior.coords)
+        all_x.extend(c[0] for c in coords)
+        all_y.extend(c[1] for c in coords)
+
+    return {
+        "min_x": min(all_x) - BUFFER_M,
+        "max_x": max(all_x) + BUFFER_M,
+        "min_y": min(all_y) - BUFFER_M,
+        "max_y": max(all_y) + BUFFER_M
+    }
+
 # ── Homography loader ─────────────────────────────────────────────────────────
 
 def load_homography(cal_file: str):
@@ -173,6 +202,16 @@ def main():
     H     = load_homography("/app/calibration/calibration.json")
     zones = load_zones("/app/configs/zone_config.json")
 
+    # Compute scene bounds from zone polygons
+    # Used to filter detections that are clearly outside the monitored area
+    scene_bounds = compute_scene_bounds(zones)
+    logger.info(
+        f"Scene bounds: x=[{scene_bounds['min_x']:.1f}, "
+        f"{scene_bounds['max_x']:.1f}] "
+        f"y=[{scene_bounds['min_y']:.1f}, "
+        f"{scene_bounds['max_y']:.1f}]"
+    )
+
     # Camera
     cap = open_capture(RTSP_URL)
 
@@ -205,7 +244,7 @@ def main():
             frame,
             persist=True,       # ByteTrack — maintains IDs across frames
             classes=list(TRACKED_CLASSES.keys()),
-            conf=0.4,           # minimum detection confidence
+            conf=0.6,           # minimum detection confidence
             iou=0.5,            # NMS IoU threshold
             verbose=False,
             device=0            # GPU
@@ -236,6 +275,31 @@ def main():
 
                 # World coordinates via homography
                 world_pos = image_to_world(H, feet_u, feet_v)
+
+                # Early velocity estimate from trajectory store
+                # (before update — uses last known position)
+                prev_traj = traj_store.store.get(entity_id, [])
+                if world_pos and len(prev_traj) >= 2:
+                    dx = world_pos[0] - prev_traj[-1][0]
+                    dy = world_pos[1] - prev_traj[-1][1]
+                    velocity_raw = (dx**2 + dy**2) ** 0.5 / interval
+                else:
+                    velocity_raw = 0.0
+
+                # Filter stationary far-field detections
+                # Uses scene bounds derived from zone_config.json
+                # plus a 2m buffer — avoids hardcoded distances
+                if world_pos \
+                        and world_pos[1] > scene_bounds["max_y"] \
+                        and velocity_raw < 0.05:
+                    logger.debug(
+                        f"Filtered far-field detection: "
+                        f"entity={entity_id} "
+                        f"pos=({world_pos[0]:.2f}, {world_pos[1]:.2f}) "
+                        f"vel={velocity_raw:.3f} "
+                        f"conf={conf:.3f}"
+                    )
+                    continue
 
                 # Trajectory and dwell time
                 trajectory = traj_store.update(entity_id, world_pos)
@@ -322,7 +386,7 @@ def main():
         pub.publish("scene_state", state)
         r.set("scene:latest", state_json)
         r.lpush("scene:replay_buffer", state_json)
-        r.ltrim("scene:replay_buffer", 0, 9999)
+        r.ltrim("scene:replay_buffer", 0, 99999)
 
         # ── FPS logging ───────────────────────────────────────────────────────
         fps_count += 1

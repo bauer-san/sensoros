@@ -15,6 +15,7 @@ import pickle
 import logging
 import numpy as np
 import redis
+import torch
 import torch.nn as nn
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

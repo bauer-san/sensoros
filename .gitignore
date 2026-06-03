@@ -1,3 +1,7 @@
 .env
 models/*.pt
 data/
+src/anomaly/__pycache__/features.cpython-310.pyc
+src/anomaly/__pycache__/train.cpython-310.pyc
+src/perception/perception_node.py
+src/shared/__pycache__/bus.cpython-310.pyc
