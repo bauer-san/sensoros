@@ -52,7 +52,9 @@ services:
       # Limit PyTorch reserved memory
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
     volumes:
-      - ./models:/app/models:ro
+      - ./src/perception:/app
+      - ./src/shared:/app/shared
+      - ./models:/app/models
       - ./calibration:/app/calibration:ro
       - ./configs:/app/configs:ro
       - ./data/logs:/app/logs
@@ -71,10 +73,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile.anomaly
     runtime: nvidia
+    network_mode: host
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - REDIS_HOST=redis
+      - REDIS_HOST=localhost
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - LOG_LEVEL=${LOG_LEVEL}
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
@@ -84,11 +87,6 @@ services:
       - ./models:/app/models
       - ./configs:/app/configs:ro
       - ./data:/app/data
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - sensoros-net
     restart: unless-stopped
 
   twin:

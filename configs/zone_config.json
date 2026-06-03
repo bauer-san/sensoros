@@ -10,7 +10,12 @@
         [ 5.0, 8.0],
         [-5.0, 8.0]
       ],
-      "description": "Lawn area between house and road — monitors approach toward entrance"
+      "description": "Lawn area between house and road"
     }
-  ]
+  ],
+  "anomaly_config": {
+    "dwell_alert_seconds": 120.0,
+    "min_moving_velocity": 0.3,
+    "rule_score_weight":   0.3
+  }
 }

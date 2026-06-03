@@ -15,6 +15,7 @@ import pickle
 import logging
 import numpy as np
 import redis
+import torch.nn as nn
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from anomaly.features import (
@@ -32,6 +33,34 @@ REDIS_PASSWORD  = os.getenv("REDIS_PASSWORD", "")
 REDIS_PORT      = int(os.getenv("REDIS_PORT", 6379))
 MODEL_DIR       = "models/anomaly"
 MIN_SAMPLES     = 100    # minimum feature vectors to train
+
+# ── Model definition ──────────────────────────────────────────────────────
+class LSTMAutoencoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim=32, latent_dim=8):
+        super().__init__()
+        self.encoder = nn.LSTM(
+            input_dim, hidden_dim,
+            num_layers=1, batch_first=True
+        )
+        self.enc_fc  = nn.Linear(hidden_dim, latent_dim)
+        self.dec_fc  = nn.Linear(latent_dim, hidden_dim)
+        self.decoder = nn.LSTM(
+            hidden_dim, input_dim,
+            num_layers=1, batch_first=True
+        )
+
+    def forward(self, x):
+        _, (h, _) = self.encoder(x)
+        latent    = self.enc_fc(h[-1])
+        dec_init  = self.dec_fc(latent)
+        dec_init  = dec_init.unsqueeze(1).repeat(1, x.size(1), 1)
+        out, _    = self.decoder(dec_init)
+        return out
+
+    def reconstruction_error(self, x):
+        with torch.no_grad():
+            recon = self.forward(x)
+            return torch.mean((recon - x) ** 2, dim=(1, 2))
 
 # ── Load scene states from Redis ──────────────────────────────────────────────
 
@@ -72,9 +101,17 @@ def train_isolation_forest(X: np.ndarray) -> object:
     )
     model.fit(X_scaled)
 
-    # Compute baseline score statistics on training data
     scores = -model.decision_function(X_scaled)
-    threshold = float(np.percentile(scores, 98))  # 98th percentile = anomaly
+    
+    # Use percentile but enforce a minimum meaningful threshold
+    # to prevent collapse when score variance is low
+    raw_threshold = float(np.percentile(scores, 98))
+    score_std     = float(scores.std())
+    threshold     = max(raw_threshold, scores.mean() + 2 * score_std)
+    
+    logger.info(f"Score mean: {scores.mean():.4f} std: {score_std:.4f}")
+    logger.info(f"Raw 98th pct: {raw_threshold:.4f}")
+    logger.info(f"Final threshold: {threshold:.4f}")
 
     logger.info(f"Isolation Forest trained")
     logger.info(f"Score range: {scores.min():.3f} – {scores.max():.3f}")
@@ -125,34 +162,6 @@ def train_lstm_autoencoder(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Training on: {device}")
-
-    # ── Model definition ──────────────────────────────────────────────────────
-    class LSTMAutoencoder(nn.Module):
-        def __init__(self, input_dim, hidden_dim=32, latent_dim=8):
-            super().__init__()
-            self.encoder = nn.LSTM(
-                input_dim, hidden_dim,
-                num_layers=1, batch_first=True
-            )
-            self.enc_fc  = nn.Linear(hidden_dim, latent_dim)
-            self.dec_fc  = nn.Linear(latent_dim, hidden_dim)
-            self.decoder = nn.LSTM(
-                hidden_dim, input_dim,
-                num_layers=1, batch_first=True
-            )
-
-        def forward(self, x):
-            _, (h, _) = self.encoder(x)
-            latent    = self.enc_fc(h[-1])
-            dec_init  = self.dec_fc(latent)
-            dec_init  = dec_init.unsqueeze(1).repeat(1, x.size(1), 1)
-            out, _    = self.decoder(dec_init)
-            return out
-
-        def reconstruction_error(self, x):
-            with torch.no_grad():
-                recon = self.forward(x)
-                return torch.mean((recon - x) ** 2, dim=(1, 2))
 
     model     = LSTMAutoencoder(FEATURE_DIM).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)

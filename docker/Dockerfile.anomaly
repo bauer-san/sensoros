@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1
 
 # PyTorch and TensorRT are pre-installed in l4t-ml
 RUN pip3 install --no-cache-dir \
-    scikit-learn \
+    "scikit-learn==1.7.2" \
     pyzmq \
     redis \
     fastapi \
