@@ -100,6 +100,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL}
     volumes:
+      - ./src/twin:/app
+      - ./src/shared:/app/shared
       - ./configs:/app/configs:ro
     depends_on:
       redis:

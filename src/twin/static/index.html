@@ -321,7 +321,7 @@
 
 <main>
   <div class="map-container">
-    <div class="map-label">Ground Plane — Approach Zone</div>
+    <div class="map-label">Ground Plane — Origin: Front Door</div>
     <canvas id="scene-canvas"></canvas>
   </div>
 </main>
@@ -547,7 +547,7 @@ function drawZone(zone) {
 }
 
 function drawCamera() {
-  // Camera is at top-center of the scene
+  // Origin = front door edge (camera mounted nearby)
   const [cx, cy] = worldToCanvas(0, 0);
   ctx.fillStyle  = "#58a6ff";
   ctx.beginPath();
@@ -556,7 +556,7 @@ function drawCamera() {
   ctx.fillStyle = "rgba(139,148,158,0.8)";
   ctx.font      = "10px monospace";
   ctx.textAlign = "center";
-  ctx.fillText("CAMERA", cx, cy - 12);
+  ctx.fillText("DOOR", cx, cy - 12);
 }
 
 function drawEntity(entity, score) {
