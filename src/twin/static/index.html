@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SensorOS — Digital Twin</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --green:    #3fb950;
+    --yellow:   #d29922;
+    --red:      #f85149;
+    --blue:     #58a6ff;
+    --orange:   #e3b341;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    grid-template-columns: 1fr 340px;
+    grid-template-areas:
+      "header header"
+      "main   sidebar";
+  }
+
+  /* ── Header ── */
+  header {
+    grid-area: header;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+  }
+
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--blue);
+    letter-spacing: 0.05em;
+  }
+
+  .status-pill {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .pill-green  { background: rgba(63,185,80,0.15);  color: var(--green); }
+  .pill-red    { background: rgba(248,81,73,0.15);  color: var(--red);   }
+  .pill-yellow { background: rgba(210,153,34,0.15); color: var(--yellow);}
+
+  .header-stats {
+    margin-left: auto;
+    display: flex;
+    gap: 24px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .header-stats span { color: var(--text); }
+
+  /* ── Main — scene map ── */
+  main {
+    grid-area: main;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .map-container {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #scene-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .map-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    grid-area: sidebar;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel {
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    background: var(--surface);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    padding: 12px 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* ── Entity cards ── */
+  .entity-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .entity-card.anomalous {
+    border-color: var(--red);
+    box-shadow: 0 0 8px rgba(248,81,73,0.2);
+  }
+
+  .entity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .entity-id {
+    color: var(--blue);
+    font-weight: 600;
+  }
+
+  .score-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  .score-normal   { background: rgba(63,185,80,0.15);  color: var(--green); }
+  .score-warning  { background: rgba(210,153,34,0.15); color: var(--yellow);}
+  .score-alert    { background: rgba(248,81,73,0.15);  color: var(--red);   }
+
+  .entity-detail {
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 12px;
+  }
+
+  .entity-detail .val { color: var(--text); }
+
+  /* ── Score bar ── */
+  .score-bar-wrap {
+    margin-top: 6px;
+    background: var(--border);
+    border-radius: 2px;
+    height: 3px;
+    overflow: hidden;
+  }
+
+  .score-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s, background 0.3s;
+  }
+
+  /* ── Alert feed ── */
+  .alert-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .alert-item:last-child { border-bottom: none; }
+
+  .alert-time  { color: var(--muted); font-size: 11px; }
+  .alert-id    { color: var(--red);   font-weight: 600; }
+  .alert-zone  { color: var(--orange); }
+  .alert-score { color: var(--muted); }
+
+  /* ── Query panel ── */
+  .query-panel {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .query-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .query-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+  }
+
+  .query-input:focus { border-color: var(--blue); }
+
+  .query-btn {
+    background: var(--blue);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .query-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .query-response {
+    margin-top: 10px;
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 12px;
+    min-height: 40px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .query-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  /* ── Empty state ── */
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 20px 0;
+    font-size: 12px;
+  }
+
+  /* ── Connection indicator ── */
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-red    { background: var(--red); }
+  .dot-yellow { background: var(--yellow); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ SensorOS</h1>
+  <div id="conn-status" class="status-pill pill-yellow">
+    <span class="dot dot-yellow"></span>CONNECTING
+  </div>
+  <div id="alert-status" class="status-pill pill-green">ALL CLEAR</div>
+  <div class="header-stats">
+    frame <span id="stat-frame">—</span> &nbsp;|&nbsp;
+    entities <span id="stat-entities">0</span> &nbsp;|&nbsp;
+    alerts <span id="stat-alerts">0</span> &nbsp;|&nbsp;
+    <span id="stat-time">—</span>
+  </div>
+</header>
+
+<main>
+  <div class="map-container">
+    <div class="map-label">Ground Plane — Approach Zone</div>
+    <canvas id="scene-canvas"></canvas>
+  </div>
+</main>
+
+<aside>
+  <div class="panel" style="flex: 0 0 auto; max-height: 45vh;">
+    <div class="panel-header">
+      Tracked Entities
+      <span id="entity-count">0</span>
+    </div>
+    <div class="panel-body" id="entity-list">
+      <div class="empty">No entities detected</div>
+    </div>
+  </div>
+
+  <div class="panel" style="flex: 1; min-height: 0;">
+    <div class="panel-header">
+      Alert History
+      <span id="alert-count">0</span>
+    </div>
+    <div class="panel-body" id="alert-list">
+      <div class="empty">No alerts recorded</div>
+    </div>
+  </div>
+
+  <div class="query-panel">
+    <div class="query-label">LLM Scene Query</div>
+    <div class="query-row">
+      <input
+        id="query-input"
+        class="query-input"
+        type="text"
+        placeholder="Ask about the scene..."
+        onkeydown="if(event.key==='Enter') sendQuery()"
+      />
+      <button class="query-btn" id="query-btn" onclick="sendQuery()">Ask</button>
+    </div>
+    <div class="query-response" id="query-response"></div>
+  </div>
+</aside>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+
+const WS_URL      = `ws://${location.host}/ws`;
+const QUERY_URL   = `http://${location.host}/query`;
+
+// Scene coordinate bounds (from calibration)
+// Approach zone: X=-5 to 5, Y=0 to 8
+const WORLD_MIN_X = -7;
+const WORLD_MAX_X =  7;
+const WORLD_MIN_Y =  0;
+const WORLD_MAX_Y = 12;
+
+const ZONES = [
+  {
+    id: "approach_zone",
+    label: "Approach Zone",
+    alert_level: "high",
+    polygon: [[-5,0],[5,0],[5,8],[-5,8]]
+  }
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let state = {
+  scene:   {},
+  anomaly: {},
+  alerts:  [],
+  activeAlertIds: new Set()
+};
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+
+const canvas = document.getElementById("scene-canvas");
+const ctx    = canvas.getContext("2d");
+
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  canvas.width    = container.clientWidth;
+  canvas.height   = container.clientHeight;
+  render();
+}
+
+window.addEventListener("resize", resizeCanvas);
+setTimeout(resizeCanvas, 100);
+
+// World → canvas coordinate transform
+function worldToCanvas(wx, wy) {
+  const W  = canvas.width;
+  const H  = canvas.height;
+  const pad = 40;
+
+  const scaleX = (W - pad*2) / (WORLD_MAX_X - WORLD_MIN_X);
+  const scaleY = (H - pad*2) / (WORLD_MAX_Y - WORLD_MIN_Y);
+  const scale  = Math.min(scaleX, scaleY);
+
+  // Center the scene
+  const offX = (W - scale * (WORLD_MAX_X - WORLD_MIN_X)) / 2;
+  const offY = (H - scale * (WORLD_MAX_Y - WORLD_MIN_Y)) / 2;
+
+  const cx = offX + (wx - WORLD_MIN_X) * scale;
+  // Y is inverted — camera is at top, road at bottom
+  const cy = H - offY - (wy - WORLD_MIN_Y) * scale;
+
+  return [cx, cy];
+}
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+
+function render() {
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // Background
+  ctx.fillStyle = "#0d1117";
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  drawGrid();
+
+  // Zones
+  ZONES.forEach(drawZone);
+
+  // Camera position indicator (top center)
+  drawCamera();
+
+  // Entities
+  const entities = state.scene.entities || [];
+  const scores   = state.anomaly.scores  || [];
+  const scoreMap = {};
+  scores.forEach(s => scoreMap[s.entity_id] = s);
+
+  entities.forEach(e => drawEntity(e, scoreMap[e.id]));
+}
+
+function drawGrid() {
+  ctx.strokeStyle = "rgba(48,54,61,0.6)";
+  ctx.lineWidth   = 1;
+
+  for (let x = Math.ceil(WORLD_MIN_X); x <= WORLD_MAX_X; x++) {
+    const [cx1] = worldToCanvas(x, WORLD_MIN_Y);
+    const [, cy1] = worldToCanvas(x, WORLD_MIN_Y);
+    const [cx2, cy2] = worldToCanvas(x, WORLD_MAX_Y);
+    ctx.beginPath();
+    ctx.moveTo(cx1, cy1);
+    ctx.lineTo(cx2, cy2);
+    ctx.stroke();
+
+    // Labels
+    if (x % 2 === 0) {
+      const [lx, ly] = worldToCanvas(x, WORLD_MIN_Y);
+      ctx.fillStyle  = "rgba(139,148,158,0.5)";
+      ctx.font       = "10px monospace";
+      ctx.textAlign  = "center";
+      ctx.fillText(`${x}m`, lx, ly + 14);
+    }
+  }
+
+  for (let y = Math.ceil(WORLD_MIN_Y); y <= WORLD_MAX_Y; y++) {
+    const [cx1, cy1] = worldToCanvas(WORLD_MIN_X, y);
+    const [cx2, cy2] = worldToCanvas(WORLD_MAX_X, y);
+    ctx.beginPath();
+    ctx.moveTo(cx1, cy1);
+    ctx.lineTo(cx2, cy2);
+    ctx.stroke();
+
+    if (y % 2 === 0) {
+      const [lx, ly] = worldToCanvas(WORLD_MIN_X, y);
+      ctx.fillStyle  = "rgba(139,148,158,0.5)";
+      ctx.font       = "10px monospace";
+      ctx.textAlign  = "right";
+      ctx.fillText(`${y}m`, lx - 6, ly + 4);
+    }
+  }
+}
+
+function drawZone(zone) {
+  const pts = zone.polygon.map(([x,y]) => worldToCanvas(x, y));
+
+  // Determine zone color based on whether any entity is in it
+  const entities    = state.scene.entities || [];
+  const zoneCounts  = state.scene.zone_counts || {};
+  const hasEntities = (zoneCounts[zone.id] || 0) > 0;
+
+  // Check if any entity in this zone is anomalous
+  const scores = state.anomaly.scores || [];
+  const hasAnomaly = scores.some(
+    s => s.is_anomalous && s.zone && s.zone.id === zone.id
+  );
+
+  let fillColor   = "rgba(88,166,255,0.06)";
+  let strokeColor = "rgba(88,166,255,0.3)";
+
+  if (hasAnomaly) {
+    fillColor   = "rgba(248,81,73,0.12)";
+    strokeColor = "rgba(248,81,73,0.7)";
+  } else if (hasEntities) {
+    fillColor   = "rgba(63,185,80,0.08)";
+    strokeColor = "rgba(63,185,80,0.5)";
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  pts.slice(1).forEach(([x,y]) => ctx.lineTo(x, y));
+  ctx.closePath();
+
+  ctx.fillStyle   = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth   = hasAnomaly ? 2 : 1;
+  ctx.setLineDash(hasAnomaly ? [] : [4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Zone label
+  const cx = pts.reduce((s,[x]) => s+x, 0) / pts.length;
+  const cy = pts.reduce((s,[,y]) => s+y, 0) / pts.length;
+  ctx.fillStyle = strokeColor;
+  ctx.font      = "11px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(zone.label.toUpperCase(), cx, cy);
+}
+
+function drawCamera() {
+  // Camera is at top-center of the scene
+  const [cx, cy] = worldToCanvas(0, 0);
+  ctx.fillStyle  = "#58a6ff";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(139,148,158,0.8)";
+  ctx.font      = "10px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("CAMERA", cx, cy - 12);
+}
+
+function drawEntity(entity, score) {
+  const pos = entity.position_2d;
+  if (!pos) return;
+
+  const [cx, cy] = worldToCanvas(pos.x, pos.y);
+  const isAnomaly = score && score.is_anomalous;
+  const fused     = score ? score.fused_score : 0;
+
+  // Pulse ring for anomalous entities
+  if (isAnomaly) {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18 + pulse * 6, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(248,81,73,${0.3 + pulse * 0.3})`;
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+  }
+
+  // Entity dot
+  const color = isAnomaly ? "#f85149"
+    : fused > 0.5         ? "#d29922"
+    :                       "#3fb950";
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fillStyle = color + "33";
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 2;
+  ctx.stroke();
+
+  // Entity label
+  ctx.fillStyle = color;
+  ctx.font      = "bold 11px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(entity.id.replace("person_", "P"), cx, cy + 4);
+
+  // Score label
+  if (score && score.fused_score > 0) {
+    ctx.fillStyle = "rgba(230,237,243,0.7)";
+    ctx.font      = "10px monospace";
+    ctx.fillText(`${score.fused_score.toFixed(2)}`, cx, cy - 16);
+  }
+
+  // Trajectory
+  const traj = entity.trajectory || [];
+  if (traj.length > 1) {
+    ctx.beginPath();
+    const [tx0, ty0] = worldToCanvas(traj[0][0], traj[0][1]);
+    ctx.moveTo(tx0, ty0);
+    traj.slice(1).forEach(([x,y]) => {
+      const [tx, ty] = worldToCanvas(x, y);
+      ctx.lineTo(tx, ty);
+    });
+    ctx.strokeStyle = color + "66";
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ── Sidebar updates ───────────────────────────────────────────────────────────
+
+function updateEntityList() {
+  const entities = state.scene.entities || [];
+  const scores   = state.anomaly.scores  || [];
+  const scoreMap = {};
+  scores.forEach(s => scoreMap[s.entity_id] = s);
+
+  document.getElementById("entity-count").textContent = entities.length;
+
+  const el = document.getElementById("entity-list");
+  if (entities.length === 0) {
+    el.innerHTML = '<div class="empty">No entities detected</div>';
+    return;
+  }
+
+  el.innerHTML = entities.map(e => {
+    const s         = scoreMap[e.id];
+    const fused     = s ? s.fused_score : 0;
+    const isAnomaly = s && s.is_anomalous;
+    const pos       = e.position_2d;
+
+    const scoreClass = isAnomaly    ? "score-alert"
+      : fused > 0.5                 ? "score-warning"
+      :                               "score-normal";
+
+    const barColor = isAnomaly     ? "#f85149"
+      : fused > 0.5                ? "#d29922"
+      :                              "#3fb950";
+
+    const barPct = Math.min(fused * 50, 100);
+
+    return `
+      <div class="entity-card ${isAnomaly ? 'anomalous' : ''}">
+        <div class="entity-header">
+          <span class="entity-id">${e.id}</span>
+          <span class="score-badge ${scoreClass}">
+            ${fused.toFixed(2)}
+          </span>
+        </div>
+        <div class="entity-detail">
+          zone: <span class="val">${e.zone ? e.zone.label : 'none'}</span><br>
+          pos:  <span class="val">${pos ? `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})m` : '—'}</span><br>
+          dwell: <span class="val">${e.dwell_time_seconds.toFixed(0)}s</span> &nbsp;
+          vel: <span class="val">${e.velocity_ms ? e.velocity_ms.toFixed(1) : '0.0'}m/s</span><br>
+          conf: <span class="val">${(e.confidence * 100).toFixed(0)}%</span>
+          ${s ? `&nbsp; rule: <span class="val">${s.rule_score ? s.rule_score.toFixed(2) : '0.00'}</span>
+          lstm: <span class="val">${s.lstm_score ? s.lstm_score.toFixed(2) : '0.00'}</span>` : ''}
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar"
+               style="width:${barPct}%; background:${barColor}">
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function updateAlertList() {
+  const alerts = state.alerts;
+  document.getElementById("alert-count").textContent = alerts.length;
+
+  const el = document.getElementById("alert-list");
+  if (alerts.length === 0) {
+    el.innerHTML = '<div class="empty">No alerts recorded</div>';
+    return;
+  }
+
+  el.innerHTML = alerts.map(a => {
+    const ts   = a.timestamp ? a.timestamp.slice(11, 19) : "—";
+    const zone = a.zone ? a.zone.label : "unknown zone";
+    return `
+      <div class="alert-item">
+        <div>
+          <span class="alert-time">${ts}</span>
+          <span class="alert-id"> 🚨 ${a.entity_id}</span>
+        </div>
+        <div>
+          <span class="alert-zone">${zone}</span>
+          <span class="alert-score"> score=${a.fused_score ? a.fused_score.toFixed(2) : '—'}
+          dwell=${a.dwell_time ? a.dwell_time.toFixed(0) : 0}s</span>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function updateHeader() {
+  const scene   = state.scene;
+  const scores  = state.anomaly.scores || [];
+  const hasAlert = scores.some(s => s.is_anomalous);
+
+  document.getElementById("stat-frame").textContent =
+    scene.frame_id || "—";
+  document.getElementById("stat-entities").textContent =
+    (scene.entities || []).length;
+  document.getElementById("stat-alerts").textContent =
+    state.alerts.length;
+  document.getElementById("stat-time").textContent =
+    scene.timestamp ? scene.timestamp.slice(11, 19) : "—";
+
+  const alertStatus = document.getElementById("alert-status");
+  if (hasAlert) {
+    alertStatus.textContent  = "⚠ ALERT ACTIVE";
+    alertStatus.className    = "status-pill pill-red";
+  } else {
+    alertStatus.textContent  = "ALL CLEAR";
+    alertStatus.className    = "status-pill pill-green";
+  }
+}
+
+// Render loop — decouple from WebSocket for smooth animation
+function renderLoop() {
+  render();
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+
+function connect() {
+  const ws     = new WebSocket(WS_URL);
+  const connEl = document.getElementById("conn-status");
+
+  ws.onopen = () => {
+    connEl.innerHTML = '<span class="dot dot-green"></span>LIVE';
+    connEl.className = "status-pill pill-green";
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type !== "update") return;
+
+    state.scene   = data.scene   || {};
+    state.anomaly = data.anomaly || {};
+    state.alerts  = data.alerts  || [];
+
+    updateEntityList();
+    updateAlertList();
+    updateHeader();
+  };
+
+  ws.onclose = () => {
+    connEl.innerHTML = '<span class="dot dot-yellow"></span>RECONNECTING';
+    connEl.className = "status-pill pill-yellow";
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+connect();
+
+// ── LLM Query ─────────────────────────────────────────────────────────────────
+
+async function sendQuery() {
+  const input = document.getElementById("query-input");
+  const btn   = document.getElementById("query-btn");
+  const resp  = document.getElementById("query-response");
+  const q     = input.value.trim();
+  if (!q) return;
+
+  btn.disabled     = true;
+  resp.textContent = "Querying...";
+
+  try {
+    const res  = await fetch(
+      `${QUERY_URL}?q=${encodeURIComponent(q)}`
+    );
+    const data = await res.json();
+    resp.textContent = data.answer || data.error || "No response";
+  } catch (e) {
+    resp.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

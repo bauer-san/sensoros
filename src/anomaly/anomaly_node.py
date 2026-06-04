@@ -308,6 +308,17 @@ def main():
                 f"dwell={alert['dwell_time']:.0f}s"
             )
 
+            # Persist to alert history for LLM context
+            r.lpush("alerts:history", json.dumps({
+                "timestamp":  timestamp,
+                "entity_id":  alert["entity_id"],
+                "zone":       alert.get("zone"),
+                "fused_score": alert["fused_score"],
+                "dwell_time": alert.get("dwell_time", 0),
+                "position_2d": alert.get("position_2d")
+            }))
+            r.ltrim("alerts:history", 0, 99)   # keep last 100 alerts
+
         # FPS logging
         count += 1
         now    = time.time()

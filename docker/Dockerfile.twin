@@ -16,7 +16,8 @@ RUN pip3 install --no-cache-dir \
     pyzmq \
     anthropic \
     jinja2 \
-    python-multipart
+    python-multipart \
+    aiofiles    
 
 WORKDIR /app
 COPY src/twin/ .
