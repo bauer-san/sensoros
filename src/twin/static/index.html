@@ -301,6 +301,60 @@
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.4; }
   }
+
+  /* ── Path Visualizer Plugin controls ── */
+  .viz-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+  }
+
+  .viz-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 2px;
+  }
+
+  .viz-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .viz-btn:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .viz-btn.active {
+    background: rgba(88,166,255,0.15);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .viz-btn.active.trail-btn  { background: rgba(63,185,80,0.15);  border-color: var(--green); color: var(--green); }
+  .viz-btn.active.heat-btn   { background: rgba(248,81,73,0.12);  border-color: var(--red);   color: var(--red);  }
+  .viz-btn.active.dwell-btn  { background: rgba(210,153,34,0.15); border-color: var(--yellow); color: var(--yellow); }
+
+  .viz-btn.clear-btn {
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .viz-btn.clear-btn:hover {
+    border-color: var(--red);
+    color: var(--red);
+  }
 </style>
 </head>
 <body>
@@ -311,6 +365,20 @@
     <span class="dot dot-yellow"></span>CONNECTING
   </div>
   <div id="alert-status" class="status-pill pill-green">ALL CLEAR</div>
+
+  <!-- Path Visualizer Plugin controls -->
+  <div class="viz-controls">
+    <span class="viz-label">Viz</span>
+    <button id="btn-trails" class="viz-btn trail-btn active"
+            onclick="toggleViz('trails')" title="Show/hide path trails">Trails</button>
+    <button id="btn-heatmap" class="viz-btn heat-btn"
+            onclick="toggleViz('heatmap')" title="Show/hide position heatmap">Heatmap</button>
+    <button id="btn-dwell" class="viz-btn dwell-btn"
+            onclick="toggleViz('dwell')" title="Show/hide dwell markers">Dwell</button>
+    <button class="viz-btn clear-btn"
+            onclick="clearVizHistory()" title="Clear all history">Clear</button>
+  </div>
+
   <div class="header-stats">
     frame <span id="stat-frame">—</span> &nbsp;|&nbsp;
     entities <span id="stat-entities">0</span> &nbsp;|&nbsp;
@@ -363,6 +431,7 @@
   </div>
 </aside>
 
+<script src="/static/plugins/path_visualizer.js"></script>
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -393,6 +462,10 @@ let state = {
   alerts:  [],
   activeAlertIds: new Set()
 };
+
+// ── Path Visualizer Plugin ────────────────────────────────────────────────────
+
+let pathViz = null;  // initialized after worldToCanvas is defined
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
 
@@ -430,6 +503,12 @@ function worldToCanvas(wx, wy) {
   return [cx, cy];
 }
 
+// Instantiate plugin now that worldToCanvas is defined
+pathViz = new PathVisualizerPlugin(
+  { minX: WORLD_MIN_X, maxX: WORLD_MAX_X, minY: WORLD_MIN_Y, maxY: WORLD_MAX_Y },
+  worldToCanvas
+);
+
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
 function render() {
@@ -456,6 +535,9 @@ function render() {
   scores.forEach(s => scoreMap[s.entity_id] = s);
 
   entities.forEach(e => drawEntity(e, scoreMap[e.id]));
+
+  // Path Visualizer Plugin — rendered on top of entities
+  if (pathViz) pathViz.render(ctx, canvas);
 }
 
 function drawGrid() {
@@ -757,6 +839,9 @@ function connect() {
     state.anomaly = data.anomaly || {};
     state.alerts  = data.alerts  || [];
 
+    // Feed new frame into the path visualizer plugin
+    if (pathViz) pathViz.update(state.scene, state.anomaly);
+
     updateEntityList();
     updateAlertList();
     updateHeader();
@@ -772,6 +857,30 @@ function connect() {
 }
 
 connect();
+
+// ── Path Visualizer Plugin controls ───────────────────────────────────────────
+
+function toggleViz(mode) {
+  if (!pathViz) return;
+
+  const map = {
+    trails:  { prop: "showTrails",  btnId: "btn-trails"  },
+    heatmap: { prop: "showHeatmap", btnId: "btn-heatmap" },
+    dwell:   { prop: "showDwell",   btnId: "btn-dwell"   },
+  };
+
+  const entry = map[mode];
+  if (!entry) return;
+
+  pathViz[entry.prop] = !pathViz[entry.prop];
+
+  const btn = document.getElementById(entry.btnId);
+  if (btn) btn.classList.toggle("active", pathViz[entry.prop]);
+}
+
+function clearVizHistory() {
+  if (pathViz) pathViz.clear();
+}
 
 // ── LLM Query ─────────────────────────────────────────────────────────────────
 
