@@ -116,6 +116,10 @@ async def startup_event():
 def dashboard():
     return FileResponse("/app/static/index.html")
 
+@app.get("/path-viz")
+def path_visualizer():
+    return FileResponse("/app/static/path_visualizer.html")
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await manager.connect(ws)
