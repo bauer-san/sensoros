@@ -1,3 +1,4 @@
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J11AMS7S)
 # SensorOS
 
 A real-time physical security monitoring system that turns an IP camera feed into a live digital twin of a monitored space. It detects and tracks people and vehicles, scores their behaviour for anomalies, and presents everything as an interactive operator dashboard.
@@ -128,3 +129,4 @@ The fused score is a weighted combination of:
 - **LSTM score** — reconstruction error from an autoencoder trained on 12-dimensional feature vectors (position, velocity, dwell time, trajectory linearity, time-of-day encoding, zone alert level).
 
 Alerts fire when the fused score exceeds the threshold defined in `configs/zone_config.json`.
+=======
