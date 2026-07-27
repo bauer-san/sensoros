@@ -5,6 +5,7 @@ A real-time physical security monitoring system that turns an IP camera feed int
 
 ![SensorOS dashboard — live 2D ground-plane view with alert history](docs/dashboard.png)
 
+![SensorOS path vizualization — vizualize movement history](docs/path-viz.png)
 ---
 
 ## What it does
