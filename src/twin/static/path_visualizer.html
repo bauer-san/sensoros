@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SensorOS — Path Visualizer</title>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --green:   #3fb950;
+    --yellow:  #d29922;
+    --red:     #f85149;
+    --blue:    #58a6ff;
+    --orange:  #e3b341;
+    --purple:  #bc8cff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    grid-template-columns: 1fr 300px;
+    grid-template-areas:
+      "header header"
+      "main   sidebar";
+  }
+
+  /* ── Header ── */
+  header {
+    grid-area: header;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+  }
+
+  header h1 { font-size: 15px; font-weight: 600; color: var(--purple); letter-spacing: 0.05em; }
+
+  .back-link {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .back-link:hover { color: var(--blue); border-color: var(--blue); }
+
+  .status-pill {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .pill-green  { background: rgba(63,185,80,0.15);  color: var(--green); }
+  .pill-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+
+  .stat-row { font-size: 12px; color: var(--muted); }
+  .stat-row span { color: var(--text); }
+
+  /* ── Main canvas area ── */
+  main {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #scene-canvas { width: 100%; height: 100%; display: block; }
+
+  .canvas-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    grid-area: sidebar;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel {
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .panel-body { padding: 12px 16px; overflow-y: auto; flex: 1; }
+
+  /* ── Layer toggles ── */
+  .layer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .layer-row:last-child { border-bottom: none; }
+
+  .layer-name { font-size: 12px; }
+  .layer-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle input:checked + .toggle-track { background: var(--blue); }
+  .toggle-track::after {
+    content: "";
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+  /* ── Settings sliders ── */
+  .setting-row {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .setting-row:last-child { border-bottom: none; }
+
+  .setting-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .setting-label span { color: var(--text); }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+
+  /* ── Entity stats ── */
+  .entity-stat {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .entity-stat:last-child { border-bottom: none; }
+  .entity-stat-id { color: var(--blue); font-weight: 600; margin-bottom: 3px; }
+  .entity-stat-detail { color: var(--muted); line-height: 1.6; }
+  .entity-stat-detail .v { color: var(--text); }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── Legend ── */
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .legend-swatch {
+    width: 24px;
+    height: 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── Empty / connection ── */
+  .empty { color: var(--muted); text-align: center; padding: 20px 0; font-size: 12px; }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-yellow { background: var(--yellow); animation: blink 1s infinite; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ Path Visualizer</h1>
+  <a class="back-link" href="/">← Dashboard</a>
+  <div id="conn-status" class="status-pill pill-yellow">
+    <span class="dot dot-yellow"></span>CONNECTING
+  </div>
+  <div class="header-right">
+    <div class="stat-row">
+      entities <span id="stat-entities">0</span> &nbsp;|&nbsp;
+      tracked paths <span id="stat-paths">0</span> &nbsp;|&nbsp;
+      <span id="stat-time">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-label">Movement History — World Plane</div>
+  <canvas id="scene-canvas"></canvas>
+</main>
+
+<aside>
+
+  <!-- Layers -->
+  <div class="panel" style="flex-shrink:0">
+    <div class="panel-header">Layers</div>
+    <div class="panel-body" style="padding: 8px 16px;">
+
+      <div class="layer-row">
+        <div>
+          <div class="layer-name" style="color:var(--green)">Path Trails</div>
+          <div class="layer-desc">Fading movement traces per entity</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-trails" checked onchange="onToggle()">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="layer-row">
+        <div>
+          <div class="layer-name" style="color:var(--red)">Position Heatmap</div>
+          <div class="layer-desc">Density of visited positions over time</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-heatmap" onchange="onToggle()">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="layer-row">
+        <div>
+          <div class="layer-name" style="color:var(--yellow)">Dwell Markers</div>
+          <div class="layer-desc">Locations where entities stood still</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-dwell" onchange="onToggle()">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="panel" style="flex-shrink:0">
+    <div class="panel-header">Settings</div>
+    <div class="panel-body" style="padding: 8px 16px;">
+
+      <div class="setting-row">
+        <div class="setting-label">
+          Trail fade window <span id="lbl-fade">20s</span>
+        </div>
+        <input type="range" id="s-fade" min="5" max="120" value="20"
+               oninput="onSettings()">
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          Max trail length <span id="lbl-trail">300</span> pts
+        </div>
+        <input type="range" id="s-trail" min="50" max="600" value="300" step="50"
+               oninput="onSettings()">
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          Heatmap decay <span id="lbl-decay">0.992</span>
+        </div>
+        <input type="range" id="s-decay" min="970" max="999" value="992"
+               oninput="onSettings()">
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          Dwell threshold <span id="lbl-dwell">5s</span>
+        </div>
+        <input type="range" id="s-dwell" min="2" max="30" value="5"
+               oninput="onSettings()">
+      </div>
+
+      <button class="btn" onclick="viz.clear()">Clear all history</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="panel" style="flex-shrink:0">
+    <div class="panel-header">Legend</div>
+    <div class="panel-body" style="padding: 8px 16px;">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--green)"></div>
+        Normal entity trail
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--red)"></div>
+        Anomalous entity trail
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:linear-gradient(to right,#001eb4,#14a0dc,#32cd64,#dcc814,#f85149)"></div>
+        Heatmap (low → high density)
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--yellow); border-radius:50%; width:10px; height:10px;"></div>
+        Dwell spot (normal)
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--red); border-radius:50%; width:10px; height:10px;"></div>
+        Dwell spot (anomalous)
+      </div>
+    </div>
+  </div>
+
+  <!-- Live entity path stats -->
+  <div class="panel" style="flex:1; min-height:0;">
+    <div class="panel-header">Active Paths</div>
+    <div class="panel-body" id="path-list">
+      <div class="empty">No entities detected</div>
+    </div>
+  </div>
+
+</aside>
+
+<script src="/static/plugins/path_visualizer.js"></script>
+<script>
+
+// ── World bounds (matches main dashboard) ────────────────────────────────────
+const WORLD_MIN_X = -7, WORLD_MAX_X = 7;
+const WORLD_MIN_Y =  0, WORLD_MAX_Y = 12;
+
+// ── Canvas ───────────────────────────────────────────────────────────────────
+const canvas = document.getElementById("scene-canvas");
+const ctx    = canvas.getContext("2d");
+
+function resize() {
+  canvas.width  = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+function worldToCanvas(wx, wy) {
+  const pad   = 40;
+  const scaleX = (canvas.width  - pad * 2) / (WORLD_MAX_X - WORLD_MIN_X);
+  const scaleY = (canvas.height - pad * 2) / (WORLD_MAX_Y - WORLD_MIN_Y);
+  const scale  = Math.min(scaleX, scaleY);
+  const offX   = (canvas.width  - scale * (WORLD_MAX_X - WORLD_MIN_X)) / 2;
+  const offY   = (canvas.height - scale * (WORLD_MAX_Y - WORLD_MIN_Y)) / 2;
+  return [
+    offX + (wx - WORLD_MIN_X) * scale,
+    canvas.height - offY - (wy - WORLD_MIN_Y) * scale
+  ];
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let sceneState  = {};
+let anomalyState = {};
+
+// ── Plugin ───────────────────────────────────────────────────────────────────
+const viz = new PathVisualizerPlugin(
+  { minX: WORLD_MIN_X, maxX: WORLD_MAX_X, minY: WORLD_MIN_Y, maxY: WORLD_MAX_Y },
+  worldToCanvas
+);
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+function onToggle() {
+  viz.showTrails  = document.getElementById("toggle-trails").checked;
+  viz.showHeatmap = document.getElementById("toggle-heatmap").checked;
+  viz.showDwell   = document.getElementById("toggle-dwell").checked;
+}
+
+function onSettings() {
+  const fade  = parseInt(document.getElementById("s-fade").value);
+  const trail = parseInt(document.getElementById("s-trail").value);
+  const decay = parseInt(document.getElementById("s-decay").value) / 1000;
+  const dwell = parseInt(document.getElementById("s-dwell").value);
+
+  document.getElementById("lbl-fade").textContent  = `${fade}s`;
+  document.getElementById("lbl-trail").textContent = `${trail}`;
+  document.getElementById("lbl-decay").textContent = decay.toFixed(3);
+  document.getElementById("lbl-dwell").textContent = `${dwell}s`;
+
+  viz.trailFadeSecs        = fade;
+  viz.maxTrailLength       = trail;
+  viz.heatDecay            = decay;
+  viz.dwellThresholdSecs   = dwell;
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+const ZONES = [
+  { id: "approach_zone", label: "Approach Zone",
+    polygon: [[-5,0],[5,0],[5,8],[-5,8]] }
+];
+
+function drawBackground() {
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = "#0d1117";
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = "rgba(48,54,61,0.5)";
+  ctx.lineWidth   = 1;
+  for (let x = Math.ceil(WORLD_MIN_X); x <= WORLD_MAX_X; x++) {
+    const [cx, cy1] = worldToCanvas(x, WORLD_MIN_Y);
+    const [,   cy2] = worldToCanvas(x, WORLD_MAX_Y);
+    ctx.beginPath(); ctx.moveTo(cx, cy1); ctx.lineTo(cx, cy2); ctx.stroke();
+    if (x % 2 === 0) {
+      ctx.fillStyle = "rgba(139,148,158,0.4)";
+      ctx.font = "10px monospace"; ctx.textAlign = "center";
+      ctx.fillText(`${x}m`, cx, cy1 + 14);
+    }
+  }
+  for (let y = Math.ceil(WORLD_MIN_Y); y <= WORLD_MAX_Y; y++) {
+    const [cx1, cy] = worldToCanvas(WORLD_MIN_X, y);
+    const [cx2,   ] = worldToCanvas(WORLD_MAX_X, y);
+    ctx.beginPath(); ctx.moveTo(cx1, cy); ctx.lineTo(cx2, cy); ctx.stroke();
+    if (y % 2 === 0) {
+      ctx.fillStyle = "rgba(139,148,158,0.4)";
+      ctx.font = "10px monospace"; ctx.textAlign = "right";
+      ctx.fillText(`${y}m`, cx1 - 6, cy + 4);
+    }
+  }
+
+  // Zone outlines
+  ZONES.forEach(zone => {
+    const pts = zone.polygon.map(([x, y]) => worldToCanvas(x, y));
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    pts.slice(1).forEach(([x, y]) => ctx.lineTo(x, y));
+    ctx.closePath();
+    ctx.fillStyle   = "rgba(88,166,255,0.04)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(88,166,255,0.2)";
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+    const cx = pts.reduce((s, [x]) => s + x, 0) / pts.length;
+    const cy = pts.reduce((s, [, y]) => s + y, 0) / pts.length;
+    ctx.fillStyle = "rgba(88,166,255,0.25)";
+    ctx.font = "11px monospace"; ctx.textAlign = "center";
+    ctx.fillText(zone.label.toUpperCase(), cx, cy);
+  });
+
+  // Door marker
+  const [dx, dy] = worldToCanvas(0, 0);
+  ctx.beginPath(); ctx.arc(dx, dy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#58a6ff"; ctx.fill();
+  ctx.fillStyle = "rgba(139,148,158,0.7)";
+  ctx.font = "10px monospace"; ctx.textAlign = "center";
+  ctx.fillText("DOOR", dx, dy - 10);
+}
+
+function drawCurrentEntities() {
+  const entities = sceneState.entities || [];
+  const scores   = anomalyState.scores || [];
+  const scoreMap = {};
+  scores.forEach(s => { scoreMap[s.entity_id] = s; });
+
+  entities.forEach(e => {
+    const pos = e.position_2d;
+    if (!pos) return;
+    const [cx, cy]  = worldToCanvas(pos.x, pos.y);
+    const score      = scoreMap[e.id];
+    const isAnomaly  = !!(score && score.is_anomalous);
+    const color      = isAnomaly ? "#f85149" : "#3fb950";
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle   = color + "33";
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.font      = "bold 10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(e.id.replace("person_", "P"), cx, cy + 3);
+  });
+}
+
+function render() {
+  drawBackground();
+  viz.render(ctx, canvas);
+  drawCurrentEntities();
+}
+
+function renderLoop() {
+  render();
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+// ── Sidebar: active path stats ────────────────────────────────────────────────
+function updatePathList() {
+  const entities = sceneState.entities || [];
+  const scores   = anomalyState.scores || [];
+  const scoreMap = {};
+  scores.forEach(s => { scoreMap[s.entity_id] = s; });
+
+  document.getElementById("stat-entities").textContent = entities.length;
+  document.getElementById("stat-paths").textContent    = viz._trails.size;
+  document.getElementById("stat-time").textContent     =
+    sceneState.timestamp ? sceneState.timestamp.slice(11, 19) : "—";
+
+  const el = document.getElementById("path-list");
+  if (entities.length === 0) {
+    el.innerHTML = '<div class="empty">No entities detected</div>';
+    return;
+  }
+
+  el.innerHTML = entities.map(e => {
+    const trail  = viz._trails.get(e.id) || [];
+    const score  = scoreMap[e.id];
+    const fused  = score ? score.fused_score : 0;
+    const pos    = e.position_2d;
+    const color  = (score && score.is_anomalous) ? "var(--red)"
+                 : fused > 0.5                   ? "var(--yellow)"
+                 :                                  "var(--green)";
+    return `
+      <div class="entity-stat">
+        <div class="entity-stat-id" style="color:${color}">${e.id}</div>
+        <div class="entity-stat-detail">
+          pos:   <span class="v">${pos ? `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})m` : "—"}</span><br>
+          vel:   <span class="v">${e.velocity_ms ? e.velocity_ms.toFixed(1) : "0.0"} m/s</span>
+          &nbsp; dwell: <span class="v">${e.dwell_time_seconds.toFixed(0)}s</span><br>
+          trail: <span class="v">${trail.length} pts</span>
+          &nbsp; score: <span class="v">${fused.toFixed(2)}</span>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+function connect() {
+  const ws     = new WebSocket(`ws://${location.host}/ws`);
+  const connEl = document.getElementById("conn-status");
+
+  ws.onopen = () => {
+    connEl.innerHTML = '<span class="dot dot-green"></span>LIVE';
+    connEl.className = "status-pill pill-green";
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type !== "update") return;
+    sceneState   = data.scene   || {};
+    anomalyState = data.anomaly || {};
+    viz.update(sceneState, anomalyState);
+    updatePathList();
+  };
+
+  ws.onclose = () => {
+    connEl.innerHTML = '<span class="dot dot-yellow"></span>RECONNECTING';
+    connEl.className = "status-pill pill-yellow";
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+connect();
+
+</script>
+</body>
+</html>

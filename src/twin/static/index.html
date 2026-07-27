@@ -301,6 +301,18 @@
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.4; }
   }
+
+  .nav-link {
+    margin-left: auto;
+    margin-right: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .nav-link:hover { color: var(--blue); border-color: var(--blue); }
 </style>
 </head>
 <body>
@@ -311,6 +323,7 @@
     <span class="dot dot-yellow"></span>CONNECTING
   </div>
   <div id="alert-status" class="status-pill pill-green">ALL CLEAR</div>
+  <a class="nav-link" href="/path-viz" target="_blank">Path Viz ↗</a>
   <div class="header-stats">
     frame <span id="stat-frame">—</span> &nbsp;|&nbsp;
     entities <span id="stat-entities">0</span> &nbsp;|&nbsp;
@@ -409,7 +422,6 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 setTimeout(resizeCanvas, 100);
 
-// World → canvas coordinate transform
 function worldToCanvas(wx, wy) {
   const W  = canvas.width;
   const H  = canvas.height;
